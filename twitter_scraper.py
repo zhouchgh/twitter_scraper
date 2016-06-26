@@ -6,64 +6,96 @@
 import twitter
 import pymysql.cursors
 from datetime import datetime
+import time
+import urllib
 
 #----------------------------------------------------------------------
 # load configuration
 #----------------------------------------------------------------------
 config = {}
 execfile("twitter_scraper.conf", config)
+twitter_url_template = config['twitter_url_template']
+twitter_user_profile_template = config['twitter_user_profile_template']
+window_size_minite = config['window_size_minite']
+page_size = config['page_size']
+keywords = config['keywords']
 
 #-----------------------------------------------------------------------
 # create twitter API object
 #-----------------------------------------------------------------------
 api = twitter.Api(config['consumer_key'], config['consumer_secret'], config['access_token_key'], config['access_token_secret'], sleep_on_rate_limit=True)
 
-initial_schedule_time = datetime.now()
-
+last_since_id = 0
 #-----------------------------------------------------------------------
-# create mysql cursor object
+# start next schedule
 #-----------------------------------------------------------------------
-conn = pymysql.connect(config['host'], config['user'], config['password'], config['database'], charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)  
-cursor = conn.cursor()
+while(True):
+	print datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " : Fetch start......(since_id = " + str(last_since_id) + ")"
 
-#-----------------------------------------------------------------------
-# perform a basic search 
-# Twitter API docs:
-# https://dev.twitter.com/docs/api/1/get/search
-#-----------------------------------------------------------------------
-results = api.GetSearch(raw_query = config['twitter_search_query'])
+	# create mysql cursor object
+	conn = pymysql.connect(config['host'], config['user'], config['password'], config['database'], charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)  
+	cursor = conn.cursor()
+	
+	first_fetch = True
+	total_count = 0
+	since_id = last_since_id
 
-#-----------------------------------------------------------------------
-# Loop through each of the results, and print its content.
-#-----------------------------------------------------------------------
+	# set fetch count
+	fecth_count = page_size
+	while(fecth_count == page_size):
+		# format search query
+		if first_fetch:
+			search_query = {'q':keywords, 'lang':'en', 'since_id':str(since_id), 'count':str(page_size), 'result_type':'recent'}
+		else:
+			search_query = {'q':keywords, 'lang':'en', 'since_id':str(since_id), 'max_id':str(max_id), 'count':str(page_size), 'result_type':'recent'}
 
-twitter_user_profile_template = config['twitter_user_profile_template']
-twitter_url_template = config['twitter_url_template']
+		# perform a basic search 
+		# Twitter API docs:
+		# https://dev.twitter.com/docs/api/1/get/search
+		results = api.GetSearch(raw_query = urllib.urlencode(search_query))
+		fecth_count = len(results)
+		total_count	+= fecth_count
 
-for result in results:
-	# insert tweet information
-	current_time = datetime.now()
-	tweet_create_time = datetime.strptime(result.created_at,'%a %b %d %H:%M:%S +0000 %Y').strftime('%Y-%m-%d %H:%M:%S')
-	tweet_id = result.id_str
-	user_id = str(result.user.id)
-	content = result.text.encode('ascii', 'ignore')
-	url = twitter_url_template.replace('{UserId}', user_id).replace('{TweetId}', tweet_id)
-	cursor.callproc('merge_tweet', (current_time, tweet_create_time, tweet_id, user_id, content, url,))
-	# insert user information
-	user_create_time = datetime.strptime(result.user.created_at,'%a %b %d %H:%M:%S +0000 %Y').strftime('%Y-%m-%d %H:%M:%S')
-	user_screen_name = result.user.screen_name
-	user_name = result.user.name
-	user_description = result.user.description
-	user_url = twitter_user_profile_template.replace('{UserScreenName}', user_screen_name)
-	user_location = result.user.location
-	user_followers_count = result.user.followers_count
-	user_followings_count = result.user.friends_count
-	user_friends_count = result.user.friends_count
-	user_favourites_count = result.user.favourites_count
-	user_listed_count = result.user.listed_count
-	user_status_count = result.user.statuses_count
-	user_verified = result.user.verified
-	cursor.callproc('merge_user', (current_time, user_create_time, user_id, user_screen_name, user_name, user_description, user_url, user_location, user_followers_count, user_followings_count, user_friends_count, user_favourites_count, user_listed_count, user_status_count, user_verified,))
-conn.commit()
-conn.close()
+		# calculate since_id 
+		if first_fetch:
+			last_since_id = results[0].id if fecth_count > 0 else 0
+			first_fetch = False
 
+		# calculate max_id
+		max_id = results[-1].id - 1 if fecth_count > 0 else 0
+		
+		# Loop through each of the results, and print its content.
+		for result in results:
+			# insert tweet information
+			current_time = datetime.now()
+			tweet_create_time = datetime.strptime(result.created_at,'%a %b %d %H:%M:%S +0000 %Y').strftime('%Y-%m-%d %H:%M:%S')
+			tweet_id = result.id_str
+			user_id = str(result.user.id)
+			content = result.text.encode('ascii', 'ignore')
+			url = twitter_url_template.replace('{UserId}', user_id).replace('{TweetId}', tweet_id)
+			cursor.callproc('merge_tweet', (current_time, tweet_create_time, tweet_id, user_id, content, url,))
+			# insert user information
+			user_create_time = datetime.strptime(result.user.created_at,'%a %b %d %H:%M:%S +0000 %Y').strftime('%Y-%m-%d %H:%M:%S')
+			user_screen_name = result.user.screen_name
+			user_name = result.user.name
+			user_description = result.user.description
+			user_url = twitter_user_profile_template.replace('{UserScreenName}', user_screen_name)
+			user_location = result.user.location
+			user_followers_count = result.user.followers_count
+			user_followings_count = result.user.friends_count
+			user_friends_count = result.user.friends_count
+			user_favourites_count = result.user.favourites_count
+			user_listed_count = result.user.listed_count
+			user_status_count = result.user.statuses_count
+			user_verified = result.user.verified
+			cursor.callproc('merge_user', (current_time, user_create_time, user_id, user_screen_name, user_name, user_description, user_url, user_location, user_followers_count, user_followings_count, 	user_friends_count, user_favourites_count, user_listed_count, user_status_count, user_verified,))
+		# commite all db insertions
+		conn.commit()
+		# print twitter scraper information
+		print datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " : Fetched " + str(fecth_count) + " tweets at this call. (max_id = " + str(max_id) + ")"
+	# close db connection
+	conn.close()
+
+	print datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " : Fetch complete for schedule. Fetched " + str(total_count) + " tweets at this schedule. (since_id = " + str(since_id) + ", max_id = " + str(max_id) + ")"
+	# sleep until next schedule
+	time.sleep(window_size_minite * 60)
