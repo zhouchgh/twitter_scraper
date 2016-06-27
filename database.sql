@@ -40,6 +40,31 @@ create table if not exists tweet
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -------------------------------------------------------
+--       create topic table
+-------------------------------------------------------
+create table if not exists topic
+(
+	Id bigint(20) not null auto_increment,
+	Topic varchar(256) not null,
+	Keywords varchar(1024) not null,
+	Enabled bit not null default 0,
+  	primary key (Id),
+  	unique key Topic (Topic)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-------------------------------------------------------
+--       create tweet topic mapping table
+-------------------------------------------------------
+create table if not exists TweetTopicMapping
+(
+	Id bigint(20) not null auto_increment,
+	TweetId bigint(20) not null,
+	TopicId bigint(20) not null,
+  	primary key (Id),
+  	unique key TweetIdTopicId (TweetId, TopicId)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-------------------------------------------------------
 --      create merge_tweet store procedure
 -------------------------------------------------------
 delimiter //
@@ -76,6 +101,9 @@ on duplicate key update
 	UserId = values(UserId),
 	Content = values(Content),
 	Url = values(Url);
+select *
+from tweet
+where Id = LAST_INSERT_ID();
 end//
 delimiter ;
 
@@ -154,3 +182,55 @@ on duplicate key update
 	Verified = values(Verified);
 end//
 delimiter ;
+
+-------------------------------------------------------
+--      create get_topic store procedure
+-------------------------------------------------------
+delimiter //
+create procedure get_topics
+(
+	IncludeDisabled bit
+)
+select *
+from topic
+where Enabled = 1 or IncludeDisabled = 1//
+delimiter ;
+
+-------------------------------------------------------
+--      create merge_tweet_topic store procedure
+-------------------------------------------------------
+delimiter //
+create procedure merge_tweet_topic
+(
+	in TweetId bigint(20),
+	in TopicId bigint(20)
+)
+begin
+insert ignore into TweetTopicMapping 
+(
+	TweetId,
+	TopicId
+)
+values
+(
+	TweetId,
+	TopicId
+);
+end//
+delimiter ;
+
+--------------------------------------------------------
+--     post deployment script
+--------------------------------------------------------
+insert ignore into topic (Topic, Keywords, Enabled)
+values
+(
+	'Brexit',
+	'Brexit OR "EU referendum"',
+	1
+),
+(
+	'Game of Throne',
+	'"Game of Throne"',
+	1
+);
