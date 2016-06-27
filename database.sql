@@ -271,6 +271,9 @@ values
 ),
 (
 	'Game of Throne',
-	'"Game of Throne"',
+	'"Game of Thrones" OR "GameofThrones" OR "Jon Snow" OR "mother of dragon" OR Lannister OR "Seven Kingdoms" OR Westeros OR "Winterfell"',
 	1
-);
+)
+on duplicate key update
+	Keywords = values(Keywords),
+	Enabled = values(Enabled);
