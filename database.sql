@@ -65,6 +65,18 @@ create table if not exists TweetTopicMapping
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -------------------------------------------------------
+--       create log table
+-------------------------------------------------------
+create table if not exists `log`
+(
+	Id bigint(20) not null auto_increment,
+	EventTime datetime not null,
+	`Level` int not null, -- 0: information, 1: debug, 2: warning, 3: error, 4: fatal
+	Information varchar(4096) null,
+  	primary key (Id)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-------------------------------------------------------
 --      create merge_tweet store procedure
 -------------------------------------------------------
 delimiter //
@@ -103,7 +115,7 @@ on duplicate key update
 	Url = values(Url);
 select *
 from tweet
-where Id = LAST_INSERT_ID();
+where TweetId = tweet_id;
 end//
 delimiter ;
 
@@ -215,6 +227,34 @@ values
 (
 	TweetId,
 	TopicId
+)
+on duplicate key update
+	TweetId = values(TweetId),
+	TopicId = values(TopicId);
+end//
+delimiter ;
+
+-------------------------------------------------------
+--      create insert_log store procedure
+-------------------------------------------------------
+delimiter //
+create procedure insert_log
+(
+	in `Level` int, -- 0: information, 1: debug, 2: warning, 3: error, 4: fatal
+	in Information varchar(4096)
+)
+begin
+insert ignore into `log` 
+(
+	EventTime,
+	`Level`,
+	Information
+)
+values
+(
+	utc_timestamp(),
+	`Level`,
+	Information
 );
 end//
 delimiter ;

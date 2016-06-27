@@ -9,6 +9,12 @@ from datetime import datetime
 import time
 import urllib
 
+#---------------------------------------------------------------------
+# function
+#---------------------------------------------------------------------
+def log(cursor, level, information):
+	cursor.callproc('insert_log', (level, information,))
+
 #----------------------------------------------------------------------
 # load configuration
 #----------------------------------------------------------------------
@@ -29,10 +35,11 @@ last_since_id = {}
 # start next schedule
 #-----------------------------------------------------------------------
 while(True):
-	print datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " : Fetch start......"
 	# create mysql cursor object
 	conn = pymysql.connect(config['host'], config['user'], config['password'], config['database'], charset='utf8mb4', cursorclass=pymysql.cursors.DictCursor)  
 	cursor = conn.cursor()
+
+	log(cursor, 0, 'Fetch start......')
 
 	# get all topics
 	cursor.callproc('get_topics', (0,))
@@ -49,7 +56,7 @@ while(True):
 		total_count = 0
 		since_id = last_since_id[topic_name]
 
-		print datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' : Start fetch topic "' + topic_name + '" (since_id = ' + str(last_since_id[topic_name]) + ')'
+		log(cursor, 0, 'Start fetch topic "' + topic_name + '" (since_id = ' + str(last_since_id[topic_name]) + ')')
 
 		# set fetch count
 		fecth_count = page_size
@@ -104,20 +111,17 @@ while(True):
 				user_verified = result.user.verified
 				cursor.callproc('merge_user', (current_time, user_create_time, user_id, user_screen_name, user_name, user_description, user_url, user_location, user_followers_count, user_followings_count, 	user_friends_count, user_favourites_count, user_listed_count, user_status_count, user_verified,))
 
-			# commite all db insertions
-			conn.commit()
+			log(cursor, 0, 'Fetched ' + str(fecth_count) + ' tweets at this call. (max_id = ' + str(max_id) + ')')
 
-			# print twitter scraper information
-			print datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' : Fetched ' + str(fecth_count) + ' tweets at this call. (max_id = ' + str(max_id) + ')'
+		log(cursor, 0, 'Fetch complete for topic "' + topic_name + '". Fetched ' + str(total_count) + ' tweets at this schedule.')
 
-		# print twitter scraper information
-		print datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' : Fetch complete for topic "' + topic_name + '". Fetched ' + str(total_count) + ' tweets at this schedule.'
+	log(cursor, 0, 'Fetch complete for this schedule.')
+
+	# commite all db insertions
+	conn.commit()
 
 	# close db connection
 	conn.close()
-
-	# print twitter scraper information
-	print datetime.now().strftime('%Y-%m-%d %H:%M:%S') + ' : Fetch complete for this schedule.'
 
 	# sleep until next schedule
 	time.sleep(window_size_minite * 60)
