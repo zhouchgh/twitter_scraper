@@ -271,7 +271,7 @@ values
 ),
 (
 	'Game of Throne',
-	'"Game of Thrones" OR "GameofThrones" OR "Jon Snow" OR "mother of dragon" OR Lannister OR "Seven Kingdoms" OR Westeros OR "Winterfell"',
+	'"Game of Thrones" OR "GameofThrones"',
 	1
 )
 on duplicate key update
