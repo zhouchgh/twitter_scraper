@@ -8,6 +8,7 @@ import pymysql.cursors
 from datetime import datetime
 import time
 import urllib
+import sys
 
 #---------------------------------------------------------------------
 # function
