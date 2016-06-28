@@ -90,3 +90,7 @@ ENV/
 
 # configuration files
 *.conf
+
+# output file
+*.out
+*.o
