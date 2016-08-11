@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 #-----------------------------------------------------------------------
-# import packet   test test test 12345
+# import packet  
 #-----------------------------------------------------------------------
 import twitter
 import pymysql.cursors
